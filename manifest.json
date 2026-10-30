@@ -1,8 +1,8 @@
 {
 	"id": "word-exporter",
 	"name": "Word Exporter",
-	"version": "0.1.3",
-	"minAppVersion": "1.5.0",
+	"version": "0.1.7",
+	"minAppVersion": "1.13.0",
 	"description": "Export notes to Word (.docx) with the same formatting as PDF export.",
 	"author": "Isaac Behrens",
 	"authorUrl": "https://github.com/ibehren1",

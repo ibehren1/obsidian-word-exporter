@@ -21,10 +21,6 @@ function sniff(bytes: Uint8Array): Format | 'svg' | null {
 	return null;
 }
 
-interface NodeFs {
-	promises: { readFile(path: string): Promise<Uint8Array> };
-}
-
 function decodeDataUrl(url: string): Uint8Array | null {
 	const comma = url.indexOf(',');
 	if (comma < 0) return null;
@@ -39,7 +35,9 @@ function decodeDataUrl(url: string): Uint8Array | null {
 	return new TextEncoder().encode(decodeURIComponent(payload));
 }
 
-async function fetchBytes(src: string): Promise<Uint8Array | null> {
+type ReadLocal = (path: string) => Promise<Uint8Array | null>;
+
+async function fetchBytes(src: string, readLocal?: ReadLocal): Promise<Uint8Array | null> {
 	try {
 		if (/^https?:/i.test(src)) {
 			const res = await requestUrl({ url: src, throw: false });
@@ -47,11 +45,10 @@ async function fetchBytes(src: string): Promise<Uint8Array | null> {
 			return new Uint8Array(res.arrayBuffer);
 		}
 		if (src.startsWith('data:')) return decodeDataUrl(src);
-		if (src.startsWith('app://')) {
+		if (src.startsWith('app://') && readLocal) {
 			// Obsidian serves local files as app://<id>/<absolute path>?<mtime>.
 			const path = decodeURIComponent(new URL(src).pathname).replace(/^\/([A-Za-z]:)/, '$1');
-			const fs = (window as unknown as { require: (id: string) => NodeFs }).require('fs');
-			return new Uint8Array(await fs.promises.readFile(path));
+			return await readLocal(path);
 		}
 		return null;
 	} catch {
@@ -151,12 +148,12 @@ export async function svgElementToImage(svg: SVGSVGElement): Promise<ImageData |
 }
 
 /** Loads an <img> element's bytes at its rendered size. */
-export async function imgElementToImage(img: HTMLImageElement): Promise<ImageData | null> {
+export async function imgElementToImage(img: HTMLImageElement, readLocal?: ReadLocal): Promise<ImageData | null> {
 	const rect = img.getBoundingClientRect();
 	if (rect.width <= 0 || rect.height <= 0) return null;
 	const size = { width: pt(rect.width), height: pt(rect.height), alt: img.alt || undefined };
 
-	const bytes = await fetchBytes(img.currentSrc || img.src);
+	const bytes = await fetchBytes(img.currentSrc || img.src, readLocal);
 	const kind = bytes ? sniff(bytes) : null;
 	const radius = parseFloat(getComputedStyle(img).borderTopLeftRadius) || 0;
 	if (bytes && kind && kind !== 'svg' && radius <= 0) return { data: bytes, type: kind, ...size };

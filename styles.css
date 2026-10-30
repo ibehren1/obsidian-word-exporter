@@ -1,24 +1,25 @@
 /* Offscreen render used for export: laid out like a printed page, never seen. */
-/* Doubled ids outrank the app's html/body rules, which the export copies onto these elements. */
+/* Doubled ids outrank the app's html/body rules, which the export copies onto
+   these elements without the properties set here. */
 #word-exporter-html#word-exporter-html {
-	position: fixed !important;
-	top: 0 !important;
-	left: -100000px !important;
-	width: var(--word-exporter-page-width) !important;
-	height: var(--word-exporter-page-height) !important;
-	overflow: visible !important;
+	position: fixed;
+	top: 0;
+	left: -100000px;
+	width: var(--word-exporter-page-width);
+	height: var(--word-exporter-page-height);
+	overflow: visible;
 	pointer-events: none;
 	/* Makes this the containing block of fixed elements, like a printed page. */
-	transform: translateX(0) !important;
+	transform: translateX(0);
 }
 
 #word-exporter-body#word-exporter-body {
-	position: static !important;
-	width: auto !important;
-	height: auto !important;
-	overflow: visible !important;
-	padding: 0 !important;
-	margin: 0 !important;
+	position: static;
+	width: auto;
+	height: auto;
+	overflow: visible;
+	padding: 0;
+	margin: 0;
 }
 
 .word-exporter-scroll {

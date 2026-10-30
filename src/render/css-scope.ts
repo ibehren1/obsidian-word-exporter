@@ -55,6 +55,23 @@ export function scopeSelector(selector: string, isBody: (compound: string) => bo
 	return `#${BODY_ID} ${selector.trim()}`;
 }
 
+/** Whether a scoped selector matches one of the stand-ins itself, not a descendant or pseudo-element. */
+export function targetsHost(scoped: string): boolean {
+	const [first, rest] = firstCompound(scoped);
+	return !rest && !first.includes('::') && (first.startsWith(`#${HTML_ID}`) || first.startsWith(`#${BODY_ID}`));
+}
+
+/**
+ * Properties that place and size the stand-ins offscreen (styles.css). The
+ * app's html and body rules keep everything else, so the copy can't move or
+ * clip the render, even with !important.
+ */
+const HOST_LAYOUT = /^(position|top|right|bottom|left|inset(-.+)?|width|height|overflow(-.+)?|padding(-.+)?|margin(-.+)?|transform|translate)$/;
+
+export function isHostLayout(property: string): boolean {
+	return HOST_LAYOUT.test(property);
+}
+
 /** Whether a media query holds when printing a page of the given width. */
 export function mediaApplies(media: string, widthPx: number): boolean {
 	const text = media.trim().toLowerCase();

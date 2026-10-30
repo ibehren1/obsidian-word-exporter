@@ -4,34 +4,8 @@ import { toDocxBytes } from './docx/emit';
 import type { DocumentModel, PageSetup } from './ir';
 import { setScale } from './render/css';
 import { cssPageMargins, renderNote, type RenderedNote } from './render/render-note';
+import { electron, nodeFs } from './node';
 import { effectiveSettings, pageSetup, textHeightPx, textWidthPx, type WordExporterSettings } from './settings';
-
-interface ElectronLike {
-	remote?: {
-		dialog: {
-			showSaveDialog(opts: {
-				title?: string;
-				defaultPath?: string;
-				filters?: { name: string; extensions: string[] }[];
-			}): Promise<{ canceled: boolean; filePath?: string }>;
-		};
-	};
-	shell?: { openPath(path: string): Promise<string> };
-}
-
-interface NodeFs {
-	promises: { writeFile(path: string, data: Uint8Array): Promise<void> };
-}
-
-const nodeRequire = (id: string): unknown => (window as unknown as { require?: (id: string) => unknown }).require?.(id);
-
-function electron(): ElectronLike | null {
-	try {
-		return (nodeRequire('electron') as ElectronLike) ?? null;
-	} catch {
-		return null;
-	}
-}
 
 /** The page as PDF export would set it up, including margins from @page rules. */
 function exportPage(app: App, settings: WordExporterSettings): PageSetup {
@@ -61,6 +35,18 @@ export function renderForSettings(app: App, file: TFile, settings: WordExporterS
 	});
 }
 
+/** Reads a file by absolute path through the vault API; null if it's outside the vault. */
+async function readVaultFile(app: App, absolute: string): Promise<Uint8Array | null> {
+	const adapter = app.vault.adapter;
+	if (!(adapter instanceof FileSystemAdapter)) return null;
+	const base = adapter.getBasePath().replace(/\\/g, '/').replace(/\/$/, '');
+	const path = absolute.replace(/\\/g, '/');
+	if (!path.startsWith(`${base}/`)) return null;
+	const vaultPath = normalizePath(path.slice(base.length + 1));
+	if (!(await adapter.exists(vaultPath))) return null;
+	return new Uint8Array(await adapter.readBinary(vaultPath));
+}
+
 /** Renders a note and describes it as the intermediate document model. */
 export async function noteToModel(app: App, file: TFile, settings: WordExporterSettings): Promise<DocumentModel> {
 	const page = exportPage(app, settings);
@@ -72,6 +58,7 @@ export async function noteToModel(app: App, file: TFile, settings: WordExporterS
 			bodyFont: settings.bodyFont,
 			monoFont: settings.monoFont,
 			title: file.basename,
+			readLocalFile: (path) => readVaultFile(app, path),
 		}).walk();
 	} finally {
 		rendered.dispose();
@@ -119,7 +106,8 @@ export async function exportNote(app: App, file: TFile, settings: WordExporterSe
 			});
 			if (result.canceled || !result.filePath) return null;
 			absolute = result.filePath;
-			const fs = nodeRequire('fs') as NodeFs;
+			const fs = nodeFs();
+			if (!fs) throw new Error('Saving outside the vault is not available');
 			await fs.promises.writeFile(absolute, data);
 		} else {
 			const folder =

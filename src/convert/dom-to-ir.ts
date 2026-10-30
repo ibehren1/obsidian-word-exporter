@@ -48,6 +48,8 @@ export interface WalkOptions {
 	bodyFont?: string;
 	monoFont?: string;
 	title?: string;
+	/** Reads a local image by absolute path; null if it can't. */
+	readLocalFile?: (path: string) => Promise<Uint8Array | null>;
 }
 
 /** The content box blocks are positioned against: the page, a table cell, or a column. */
@@ -1196,7 +1198,7 @@ export class Walker {
 
 		if (el.tagName === 'BR') return [{ kind: 'break', format: parent }];
 		if (el.tagName === 'IMG') {
-			const image = await imgElementToImage(el as HTMLImageElement);
+			const image = await imgElementToImage(el as HTMLImageElement, this.opts.readLocalFile);
 			return image ? [{ kind: 'image', image, format: parent }] : [];
 		}
 		if (el.tagName === 'svg' || el.instanceOf(SVGSVGElement)) {
@@ -1272,7 +1274,7 @@ export class Walker {
 	}
 
 	private async footnoteRef(el: HTMLElement, fmt: RunFormat, ctx: Ctx): Promise<Inline[]> {
-		const link = el.matches('a') ? (el as HTMLAnchorElement) : el.querySelector('a');
+		const link = el.matches('a') ? el : el.querySelector('a');
 		const targetId = (link?.getAttribute('href') ?? '').replace(/^#/, '');
 		const source = this.footnoteSources.get(targetId);
 		if (!source) {
