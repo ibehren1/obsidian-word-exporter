@@ -1,5 +1,5 @@
 import { App, Component, MarkdownRenderer, TFile, loadMathJax } from 'obsidian';
-import { BODY_ID, HTML_ID, mediaApplies, scopeSelector, splitList } from './css-scope';
+import { BODY_ID, HTML_ID, isHostLayout, mediaApplies, scopeSelector, splitList, targetsHost } from './css-scope';
 
 // Renders a note the way PDF export does: Obsidian's own reading-view
 // renderer, the same DOM shape as its print view, light theme and the
@@ -94,6 +94,22 @@ interface ScopeOptions {
 	isBody: (compound: string) => boolean;
 }
 
+function declarations(style: CSSStyleDeclaration, keep: (name: string) => boolean): string {
+	return Array.from(style)
+		.filter(keep)
+		.map((name) => {
+			const priority = style.getPropertyPriority(name);
+			return `${name}: ${style.getPropertyValue(name)}${priority ? ` !${priority}` : ''};`;
+		})
+		.join(' ');
+}
+
+function push(out: string[], selectors: string[], text: string, opts: ScopeOptions) {
+	// The print window's root font size differs from the app's.
+	const body = text.replace(/(-?\d*\.?\d+)rem\b/g, (_m, n: string) => `${parseFloat(n) * opts.remPx}px`);
+	if (body) out.push(`${selectors.join(', ')} { ${body} }`);
+}
+
 function scopeRules(rules: CSSRuleList, opts: ScopeOptions, out: string[]) {
 	for (const rule of Array.from(rules)) {
 		if (rule instanceof CSSMediaRule) {
@@ -104,9 +120,10 @@ function scopeRules(rules: CSSRuleList, opts: ScopeOptions, out: string[]) {
 			scopeRules(rule.cssRules, opts, out);
 		} else if (rule instanceof CSSStyleRule) {
 			const selectors = splitList(rule.selectorText).map((s) => scopeSelector(s, opts.isBody));
-			// The print window's root font size differs from the app's.
-			const body = rule.style.cssText.replace(/(-?\d*\.?\d+)rem\b/g, (_m, n: string) => `${parseFloat(n) * opts.remPx}px`);
-			if (body) out.push(`${selectors.join(', ')} { ${body} }`);
+			const inner = selectors.filter((s) => !targetsHost(s));
+			const host = selectors.filter(targetsHost);
+			if (inner.length) push(out, inner, rule.style.cssText, opts);
+			if (host.length) push(out, host, declarations(rule.style, (name) => !isHostLayout(name)), opts);
 		}
 	}
 }

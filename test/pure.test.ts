@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { NumberingRegistry, levelFormat } from '../src/convert/lists';
 import { trimRuns } from '../src/convert/runs';
 import { cssContentText } from '../src/convert/furniture';
-import { mediaApplies, scopeSelector, splitList } from '../src/render/css-scope';
+import { isHostLayout, mediaApplies, scopeSelector, splitList, targetsHost } from '../src/render/css-scope';
 import type { Inline } from '../src/ir';
 
 const text = (t: string): Inline => ({ kind: 'text', text: t, format: {} });
@@ -79,6 +79,23 @@ describe('scopeSelector', () => {
 
 	it('nests everything else inside body', () => {
 		expect(scopeSelector('.markdown-rendered p + h2', isBody)).toBe('#word-exporter-body .markdown-rendered p + h2');
+	});
+
+	it('tells rules on the stand-ins themselves from rules inside them', () => {
+		expect(targetsHost('#word-exporter-body')).toBe(true);
+		expect(targetsHost('#word-exporter-body.theme-light:not(.x)')).toBe(true);
+		expect(targetsHost('#word-exporter-html')).toBe(true);
+		expect(targetsHost('#word-exporter-html::after')).toBe(false);
+		expect(targetsHost('#word-exporter-body .x')).toBe(false);
+	});
+
+	it('withholds only the stand-ins\' layout properties', () => {
+		for (const p of ['position', 'top', 'width', 'height', 'overflow-y', 'padding-left', 'margin-top', 'transform']) {
+			expect(isHostLayout(p)).toBe(true);
+		}
+		for (const p of ['font-size', 'color', 'background-color', '--font-text', 'max-width']) {
+			expect(isHostLayout(p)).toBe(false);
+		}
 	});
 
 	it('splits selector lists at top-level commas only', () => {
