@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, type SettingDefinitionItem } from 'obsidian';
 import type WordExporterPlugin from './main';
 import type { Box, PageSetup } from './ir';
 
@@ -112,6 +112,11 @@ export function textHeightPx(page: PageSetup): number {
 	return ((height - page.margins.top - page.margins.bottom) * 96) / 72;
 }
 
+type MarginKey = `margin-${0 | 1 | 2 | 3}`;
+type SettingKey = keyof WordExporterSettings | MarginKey;
+
+const MARGIN_SIDES = ['Top', 'Right', 'Bottom', 'Left'];
+
 export class WordExporterSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
@@ -120,196 +125,120 @@ export class WordExporterSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	private save = () => this.plugin.saveSettings();
-
-	private pageSettings(containerEl: HTMLElement) {
+	getControlValue(key: string): unknown {
 		const s = this.plugin.settings;
-
-		new Setting(containerEl).setName('Page size').addDropdown((d) => {
-			for (const size of Object.keys(PAGE_SIZES)) d.addOption(size, size);
-			d.setValue(s.pageSize).onChange(async (v) => {
-				s.pageSize = v as PageSize;
-				await this.save();
-			});
-		});
-
-		new Setting(containerEl).setName('Landscape').addToggle((t) =>
-			t.setValue(s.landscape).onChange(async (v) => {
-				s.landscape = v;
-				await this.save();
-			}),
-		);
-
-		new Setting(containerEl)
-			.setName('Margins')
-			.setDesc('Default matches PDF export. Word normal is 1 inch on every side.')
-			.addDropdown((d) => {
-				d.addOption('default', 'Default (same as PDF)')
-					.addOption('minimal', 'Minimal')
-					.addOption('none', 'None')
-					.addOption('word', 'Word normal')
-					.addOption('custom', 'Custom')
-					.setValue(s.margins)
-					.onChange(async (v) => {
-						s.margins = v as MarginPreset;
-						await this.save();
-						this.display();
-					});
-			});
-
-		if (s.margins === 'custom') {
-			const labels = ['Top', 'Right', 'Bottom', 'Left'];
-			labels.forEach((label, i) => {
-				new Setting(containerEl).setName(`${label} margin (mm)`).addText((t) =>
-					t.setValue(String(s.customMargins[i])).onChange(async (v) => {
-						const n = parseFloat(v);
-						if (!Number.isFinite(n) || n < 0) return;
-						s.customMargins[i] = n;
-						await this.save();
-					}),
-				);
-			});
-		}
-
-		new Setting(containerEl).setName('Include file name as title').addToggle((t) =>
-			t.setValue(s.includeTitle).onChange(async (v) => {
-				s.includeTitle = v;
-				await this.save();
-			}),
-		);
-
-		new Setting(containerEl)
-			.setName('Scale (%)')
-			.setDesc("Like PDF export's downscale percent: below 100 fits more on each page.")
-			.addSlider((sl) =>
-				sl
-					.setLimits(10, 100, 1)
-					.setValue(s.scale)
-					.onChange(async (v) => {
-						s.scale = v;
-						await this.save();
-					}),
-			);
+		const margin = /^margin-(\d)$/.exec(key);
+		if (margin) return s.customMargins[Number(margin[1])];
+		return s[key as keyof WordExporterSettings];
 	}
 
-	display(): void {
-		const { containerEl } = this;
+	async setControlValue(key: string, value: unknown): Promise<void> {
 		const s = this.plugin.settings;
-		const save = this.save;
-		containerEl.empty();
+		const margin = /^margin-(\d)$/.exec(key);
+		if (margin) s.customMargins[Number(margin[1])] = value as number;
+		else if (key === 'bodyFont' || key === 'monoFont') s[key] = (value as string).trim();
+		else if (key === 'folder') s.folder = (value as string).trim().replace(/^\/+|\/+$/g, '');
+		else Object.assign(s, { [key]: value });
+		await this.plugin.saveSettings();
+		// Other settings show or hide depending on this one.
+		this.refreshDomState();
+	}
 
-		new Setting(containerEl).setName('Page').setHeading();
-
-		new Setting(containerEl)
-			.setName('Use PDF export settings')
-			.setDesc(
-				"Use the page size, margins, title and scale last chosen in Obsidian's export to PDF dialog, so both exports match.",
-			)
-			.addToggle((t) =>
-				t.setValue(s.usePdfSettings).onChange(async (v) => {
-					s.usePdfSettings = v;
-					await save();
-					this.display();
-				}),
-			);
-
-		if (!s.usePdfSettings) this.pageSettings(containerEl);
-
-		new Setting(containerEl).setName('Fonts').setHeading();
-
-		new Setting(containerEl)
-			.setName('Text font')
-			.setDesc('Leave empty to use the font PDF export uses.')
-			.addText((t) =>
-				t.setPlaceholder('Arial').setValue(s.bodyFont).onChange(async (v) => {
-					s.bodyFont = v.trim();
-					await save();
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName('Code font')
-			.setDesc("Leave empty to use your theme's monospace font.")
-			.addText((t) =>
-				t.setPlaceholder('Menlo').setValue(s.monoFont).onChange(async (v) => {
-					s.monoFont = v.trim();
-					await save();
-				}),
-			);
-
-		new Setting(containerEl).setName('Saving').setHeading();
-
-		new Setting(containerEl).setName('Save to').addDropdown((d) =>
-			d
-				.addOption('ask', 'Ask every time')
-				.addOption('next-to-note', 'Next to the note')
-				.addOption('folder', 'A vault folder')
-				.setValue(s.saveLocation)
-				.onChange(async (v) => {
-					s.saveLocation = v as SaveLocation;
-					await save();
-					this.display();
-				}),
-		);
-
-		if (s.saveLocation === 'folder') {
-			new Setting(containerEl).setName('Folder').addText((t) =>
-				t.setPlaceholder('Exports').setValue(s.folder).onChange(async (v) => {
-					s.folder = v.trim().replace(/^\/+|\/+$/g, '');
-					await save();
-				}),
-			);
-		}
-
-				new Setting(containerEl)
-			.setName('Text font')
-			.setDesc('Leave empty to use the font PDF export uses.')
-			.addText((t) =>
-				t.setPlaceholder('Arial').setValue(s.bodyFont).onChange(async (v) => {
-					s.bodyFont = v.trim();
-					await save();
-				}),
-			);
-
-		new Setting(containerEl)
-			.setName('Code font')
-			.setDesc("Leave empty to use your theme's monospace font.")
-			.addText((t) =>
-				t.setPlaceholder('Menlo').setValue(s.monoFont).onChange(async (v) => {
-					s.monoFont = v.trim();
-					await save();
-				}),
-			);
-
-		new Setting(containerEl).setName('Saving').setHeading();
-
-		new Setting(containerEl).setName('Save to').addDropdown((d) =>
-			d
-				.addOption('ask', 'Ask every time')
-				.addOption('next-to-note', 'Next to the note')
-				.addOption('folder', 'A vault folder')
-				.setValue(s.saveLocation)
-				.onChange(async (v) => {
-					s.saveLocation = v as SaveLocation;
-					await save();
-					this.display();
-				}),
-		);
-
-		if (s.saveLocation === 'folder') {
-			new Setting(containerEl).setName('Folder').addText((t) =>
-				t.setPlaceholder('Exports').setValue(s.folder).onChange(async (v) => {
-					s.folder = v.trim().replace(/^\/+|\/+$/g, '');
-					await save();
-				}),
-			);
-		}
-
-		new Setting(containerEl).setName('Open after export').addToggle((t) =>
-			t.setValue(s.openAfterExport).onChange(async (v) => {
-				s.openAfterExport = v;
-				await save();
-			}),
-		);
+	getSettingDefinitions(): SettingDefinitionItem<SettingKey>[] {
+		const s = this.plugin.settings;
+		const ownPage = () => !s.usePdfSettings;
+		return [
+			{
+				type: 'group',
+				heading: 'Page',
+				items: [
+					{
+						name: 'Use PDF export settings',
+						desc: "Use the page size, margins, title and scale last chosen in Obsidian's export to PDF dialog, so both exports match.",
+						control: { type: 'toggle', key: 'usePdfSettings' },
+					},
+					{
+						name: 'Page size',
+						visible: ownPage,
+						control: {
+							type: 'dropdown',
+							key: 'pageSize',
+							options: Object.fromEntries(Object.keys(PAGE_SIZES).map((size) => [size, size])),
+						},
+					},
+					{ name: 'Landscape', visible: ownPage, control: { type: 'toggle', key: 'landscape' } },
+					{
+						name: 'Margins',
+						desc: 'Default matches PDF export. Word normal is 1 inch on every side.',
+						visible: ownPage,
+						control: {
+							type: 'dropdown',
+							key: 'margins',
+							options: {
+								default: 'Default (same as PDF)',
+								minimal: 'Minimal',
+								none: 'None',
+								word: 'Word normal',
+								custom: 'Custom',
+							},
+						},
+					},
+					...MARGIN_SIDES.map((side, i) => ({
+						name: `${side} margin (mm)`,
+						visible: () => ownPage() && s.margins === 'custom',
+						control: {
+							type: 'number' as const,
+							key: `margin-${i}` as MarginKey,
+							min: 0,
+							step: 'any' as const,
+							validate: (v: number) => (Number.isFinite(v) && v >= 0 ? undefined : 'Enter 0 or more.'),
+						},
+					})),
+					{ name: 'Include file name as title', visible: ownPage, control: { type: 'toggle', key: 'includeTitle' } },
+					{
+						name: 'Scale (%)',
+						desc: "Like PDF export's downscale percent: below 100 fits more on each page.",
+						visible: ownPage,
+						control: { type: 'slider', key: 'scale', min: 10, max: 100, step: 1 },
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Fonts',
+				items: [
+					{
+						name: 'Text font',
+						desc: 'Leave empty to use the font PDF export uses.',
+						control: { type: 'text', key: 'bodyFont', placeholder: 'Arial' },
+					},
+					{
+						name: 'Code font',
+						desc: "Leave empty to use your theme's monospace font.",
+						control: { type: 'text', key: 'monoFont', placeholder: 'Menlo' },
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Saving',
+				items: [
+					{
+						name: 'Save to',
+						control: {
+							type: 'dropdown',
+							key: 'saveLocation',
+							options: { ask: 'Ask every time', 'next-to-note': 'Next to the note', folder: 'A vault folder' },
+						},
+					},
+					{
+						name: 'Folder',
+						visible: () => s.saveLocation === 'folder',
+						control: { type: 'folder', key: 'folder', placeholder: 'Exports' },
+					},
+					{ name: 'Open after export', control: { type: 'toggle', key: 'openAfterExport' } },
+				],
+			},
+		];
 	}
 }

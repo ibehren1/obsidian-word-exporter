@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-word-exporter",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "Export Obsidian notes to Word (.docx) with PDF-export fidelity",
 	"main": "main.js",
 	"type": "module",
