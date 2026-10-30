@@ -56,6 +56,22 @@ including their `@media print` and `@page` rules.
 - Where the browser splits a callout across pages, Word may move it whole to the
   next page.
 
+## Access outside the vault
+
+The plugin is desktop only. It reads and writes vault files through Obsidian's
+vault API, and goes outside the vault in exactly two cases:
+
+- **Saving with *Ask where to save*:** the export is written to the file you
+  pick in the system save dialog, which may be outside the vault. The other save
+  locations write inside the vault.
+- **Reading installed fonts:** to match Word's line heights, the plugin reads
+  font files (read-only) from the system font folders, such as `/Library/Fonts`
+  and `~/Library/Fonts` on macOS, `C:\Windows\Fonts` on Windows, and
+  `/usr/share/fonts` and `~/.fonts` on Linux. Nothing is written there.
+
+The plugin makes no network requests other than fetching remote images that
+your notes already embed.
+
 ## Development
 
 ```bash

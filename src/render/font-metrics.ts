@@ -1,4 +1,5 @@
 import { Platform } from 'obsidian';
+import { nodeFs, processEnv, type NodeFs } from '../node';
 
 // Word lays out lines with a font's Windows metrics (OS/2 winAscent and
 // winDescent plus external leading), which can differ from the metrics the
@@ -6,18 +7,8 @@ import { Platform } from 'obsidian';
 // predict Word's line heights. Desktop only; any failure falls back to the
 // browser's measurement.
 
-interface NodeFs {
-	readdirSync(path: string): string[];
-	statSync(path: string): { isDirectory(): boolean };
-	openSync(path: string, flags: string): number;
-	readSync(fd: number, buf: Uint8Array, offset: number, length: number, position: number): number;
-	closeSync(fd: number): void;
-}
-
-const nodeRequire = (id: string): unknown => (window as unknown as { require?: (id: string) => unknown }).require?.(id);
-
 function fontDirs(): string[] {
-	const env = (nodeRequire('process') as { env?: Record<string, string | undefined> } | undefined)?.env ?? {};
+	const env = processEnv();
 	const home = env.HOME ?? env.USERPROFILE ?? '';
 	if (Platform.isMacOS) {
 		return [
@@ -156,7 +147,7 @@ function walk(fs: NodeFs, dir: string, out: string[], depth = 0) {
 function buildIndex(): Map<string, WordFontMetrics> {
 	const out = new Map<string, WordFontMetrics>();
 	const regular = new Set<string>();
-	const fs = nodeRequire('fs') as NodeFs | undefined;
+	const fs = nodeFs();
 	if (!fs) return out;
 	const files: string[] = [];
 	for (const dir of fontDirs()) walk(fs, dir, files);
