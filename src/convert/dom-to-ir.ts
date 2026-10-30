@@ -1274,7 +1274,7 @@ export class Walker {
 	}
 
 	private async footnoteRef(el: HTMLElement, fmt: RunFormat, ctx: Ctx): Promise<Inline[]> {
-		const link = el.matches('a') ? (el as HTMLAnchorElement) : el.querySelector('a');
+		const link = el.matches('a') ? el : el.querySelector('a');
 		const targetId = (link?.getAttribute('href') ?? '').replace(/^#/, '');
 		const source = this.footnoteSources.get(targetId);
 		if (!source) {
