@@ -1,0 +1,43 @@
+/* Offscreen render used for export: laid out like a printed page, never seen. */
+/* Doubled ids outrank the app's html/body rules, which the export copies onto these elements. */
+#word-exporter-html#word-exporter-html {
+	position: fixed !important;
+	top: 0 !important;
+	left: -100000px !important;
+	width: var(--word-exporter-page-width) !important;
+	height: var(--word-exporter-page-height) !important;
+	overflow: visible !important;
+	pointer-events: none;
+	/* Makes this the containing block of fixed elements, like a printed page. */
+	transform: translateX(0) !important;
+}
+
+#word-exporter-body#word-exporter-body {
+	position: static !important;
+	width: auto !important;
+	height: auto !important;
+	overflow: visible !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.word-exporter-scroll {
+	overflow-x: auto;
+}
+
+.word-exporter-render.markdown-preview-view {
+	width: var(--word-exporter-width);
+	overflow: visible;
+	height: auto;
+	background-color: #ffffff;
+	/* Print swaps the text font for the print font, as PDF export does. */
+	--font-text: var(--font-print);
+	--file-line-width: 100%;
+}
+
+/* Basic Columns layout for measuring, matching the plugin's own. */
+.word-exporter-render .word-exporter-columns {
+	display: flex;
+	gap: var(--size-4-6, 24px);
+	align-items: flex-start;
+}

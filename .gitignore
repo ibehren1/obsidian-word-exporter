@@ -1,0 +1,33 @@
+# vscode
+.vscode 
+
+# Intellij
+*.iml
+.idea
+
+# npm
+node_modules
+
+# Don't include the compiled main.js file in the repo.
+# They should be uploaded to GitHub releases instead.
+main.js
+
+# Exclude sourcemaps
+*.map
+
+# obsidian
+data.json
+
+# Exclude macOS Finder (System Explorer) View States
+.DS_Store
+
+# Test vault: real notes and generated output stay local
+test-vault/Reference/
+test-vault/.obsidian/workspace*.json
+test-vault/.obsidian/plugins/basic-columns/
+test-vault/**/*.docx
+test-vault/**/*.pdf
+test-output/
+test-vault/.obsidian/themes/
+test-vault/.obsidian/snippets/
+test-vault/.obsidian/appearance.json
